@@ -1,5 +1,9 @@
 # Echoes of Visitors
 
+## Demo Video
+See a demo video at [`demo_video.mov`](DEMO_VIDEO.mov).
+
+
 ## How to run
 
 No build step or Node.js required. Use either option below.
