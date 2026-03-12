@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive World Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: auto 1fr auto;
+      height: 100vh;
+    }
+    h1 {
+      grid-column: 1 / -1;
+      margin: 0;
+      padding: 0.75rem 1rem;
+      background: #1a1a2e;
+      color: #eee;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+      min-height: 300px;
+    }
+    .places-panel {
+      background: #16213e;
+      color: #eee;
+      padding: 1rem;
+      overflow-y: auto;
+    }
+    .places-panel h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #a0a0a0;
+    }
+    .place-item {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      font-size: 0.95rem;
+    }
+    .place-item:last-child { border-bottom: none; }
+    .place-item .coords {
+      font-size: 0.75rem;
+      color: #888;
+      margin-top: 0.2rem;
+    }
+    .empty-msg {
+      color: #666;
+      font-style: italic;
+    }
+    .collage-section {
+      grid-column: 1 / -1;
+      background: #0f0f1a;
+      padding: 1rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      max-height: 240px;
+      overflow: auto;
+    }
+    .collage-section h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #a0a0a0;
+    }
+    .collage {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.75rem;
+    }
+    .collage-item {
+      position: relative;
+      aspect-ratio: 4/3;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #1a1a2e;
+    }
+    .collage-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .collage-item .caption {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 0.4rem 0.5rem;
+      background: linear-gradient(transparent, rgba(0,0,0,0.85));
+      color: #eee;
+      font-size: 0.7rem;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .collage-item.loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      font-size: 0.8rem;
+    }
+    .collage-item.no-image {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      font-size: 0.75rem;
+      padding: 0.5rem;
+      text-align: center;
+      line-height: 1.3;
+    }
+    .collage-actions {
+      margin-top: 0.75rem;
+    }
+    .btn-full-collage {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background: #2a2a4a;
+      color: #c4b5fd;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    .btn-full-collage:hover {
+      background: #3a3a5a;
+    }
+    .btn-full-collage.disabled {
+      pointer-events: none;
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <h1>Echoes of Visitors</h1>
+    <div id="map"></div>
+    <aside class="places-panel">
+      <h2>Places you clicked</h2>
+      <div id="places-list">
+        <p class="empty-msg">Click on the map to add pins and see place names here.</p>
+      </div>
+    </aside>
+    <section class="collage-section">
+      <h2>Location images</h2>
+      <div id="collage" class="collage"></div>
+      <div class="collage-actions">
+        <a id="full-collage-btn" href="collage-full.html" target="_blank" rel="noopener" class="btn-full-collage">See full collage</a>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const map = L.map('map').setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const COLLAGE_STORAGE_KEY = 'echoes-collage-items';
+    const placesList = document.getElementById('places-list');
+    const collageEl = document.getElementById('collage');
+    const fullCollageBtn = document.getElementById('full-collage-btn');
+    const markers = [];
+
+    function saveCollageItems(items) {
+      try {
+        localStorage.setItem(COLLAGE_STORAGE_KEY, JSON.stringify(items));
+      } catch (e) {}
+    }
+
+    function getCollageItems() {
+      try {
+        const raw = localStorage.getItem(COLLAGE_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function getPlaceInfo(lat, lng) {
+      const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
+      return fetch(url, {
+        headers: { 'Accept': 'application/json', 'User-Agent': 'EchoesOfVisitorsMap/1.0' }
+      }).then(r => r.json()).then(data => {
+        const a = data.address || {};
+        const parts = [
+          a.city || a.town || a.village || a.municipality || a.county,
+          a.state || a.region,
+          a.country
+        ].filter(Boolean);
+        const name = parts.length ? parts.join(', ') : (data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        const country = a.country || '';
+        const state = a.state || a.region || a.county || '';
+        return { name, country, state };
+      }).catch(() => ({
+        name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+        country: '',
+        state: ''
+      }));
+    }
+
+    function getLocationImage(regionQuery) {
+      if (!regionQuery || !regionQuery.trim()) return Promise.resolve(null);
+      const search = encodeURIComponent(regionQuery.trim());
+      const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${search}&srnamespace=6&srlimit=5&format=json&origin=*`;
+      return fetch(url, { headers: { 'User-Agent': 'EchoesOfVisitorsMap/1.0' } })
+        .then(r => r.json())
+        .then(data => {
+          const pages = data.query?.search || [];
+          if (pages.length === 0) return null;
+          const pageIds = pages.map(p => p.pageid).join('|');
+          const infoUrl = `https://commons.wikimedia.org/w/api.php?action=query&pageids=${pageIds}&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*`;
+          return fetch(infoUrl, { headers: { 'User-Agent': 'EchoesOfVisitorsMap/1.0' } })
+            .then(r => r.json())
+            .then(info => {
+              const pages = info.query?.pages || {};
+              const first = Object.values(pages).find(p => p.imageinfo && p.imageinfo[0]);
+              return first ? { url: first.imageinfo[0].thumburl || first.imageinfo[0].url, title: first.title } : null;
+            });
+        })
+        .catch(() => null);
+    }
+
+    function addCollageImage(placeName, regionQuery) {
+      const item = document.createElement('div');
+      item.className = 'collage-item loading';
+      item.textContent = 'Loading…';
+      collageEl.appendChild(item);
+
+      getLocationImage(regionQuery).then(result => {
+        item.classList.remove('loading');
+        item.textContent = '';
+        if (result && result.url) {
+          const img = document.createElement('img');
+          img.src = result.url;
+          img.alt = placeName;
+          img.loading = 'lazy';
+          item.appendChild(img);
+          const cap = document.createElement('span');
+          cap.className = 'caption';
+          cap.textContent = placeName;
+          item.appendChild(cap);
+          const items = getCollageItems();
+          items.push({ placeName, imageUrl: result.url });
+          saveCollageItems(items);
+        } else {
+          item.classList.add('no-image');
+          item.textContent = placeName || 'No image found';
+        }
+        updateFullCollageButton();
+      });
+    }
+
+    function updateFullCollageButton() {
+      const items = getCollageItems();
+      fullCollageBtn.classList.toggle('disabled', items.length === 0);
+    }
+
+    function addPlaceItem(name, lat, lng) {
+      const empty = placesList.querySelector('.empty-msg');
+      if (empty) empty.remove();
+      const div = document.createElement('div');
+      div.className = 'place-item';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'name';
+      nameEl.textContent = name;
+      const coordsEl = document.createElement('div');
+      coordsEl.className = 'coords';
+      coordsEl.textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      div.appendChild(nameEl);
+      div.appendChild(coordsEl);
+      placesList.insertBefore(div, placesList.firstChild);
+      return nameEl;
+    }
+
+    updateFullCollageButton();
+
+    map.on('click', function (e) {
+      const { lat, lng } = e.latlng;
+      const marker = L.marker([lat, lng]).addTo(map);
+      markers.push(marker);
+
+      const nameEl = addPlaceItem('Loading…', lat, lng);
+      getPlaceInfo(lat, lng).then(info => {
+        nameEl.textContent = info.name;
+        const regionQuery = info.state ? `${info.state}, ${info.country}` : info.country;
+        addCollageImage(info.name, regionQuery);
+      });
+    });
+  </script>
+</body>
+</html>

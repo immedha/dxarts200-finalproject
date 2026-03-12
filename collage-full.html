@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Full collage — Echoes of visitors</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f0f1a;
+      color: #eee;
+    }
+    .header {
+      padding: 1rem 1.5rem;
+      background: #1a1a2e;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .header h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+    .back-link {
+      color: #a78bfa;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .back-link:hover { text-decoration: underline; }
+    .main {
+      padding: 1.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #666;
+    }
+    .empty-state a { color: #a78bfa; }
+    .collage-wall {
+      position: relative;
+      min-height: 60vh;
+    }
+    .collage-wall.layout-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-auto-rows: 120px;
+      gap: 0.75rem;
+      align-content: start;
+    }
+    .tile {
+      border-radius: 12px;
+      overflow: hidden;
+      background: #1a1a2e;
+      position: relative;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .tile img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .tile .label {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 0.5rem 0.65rem;
+      background: linear-gradient(transparent, rgba(0,0,0,0.9));
+      font-size: 0.8rem;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tile.size-s { grid-column: span 2; grid-row: span 2; }
+    .tile.size-m { grid-column: span 3; grid-row: span 3; }
+    .tile.size-l { grid-column: span 4; grid-row: span 4; }
+    .tile.size-xl { grid-column: span 5; grid-row: span 4; }
+    .tile.rotate-left { transform: rotate(-1.5deg); }
+    .tile.rotate-right { transform: rotate(1.5deg); }
+    .tile.rotate-tiny { transform: rotate(0.8deg); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>Your collage</h1>
+    <a href="map.html" class="back-link">← Back to map</a>
+  </header>
+  <main class="main">
+    <div id="root"></div>
+  </main>
+  <script>
+    const COLLAGE_STORAGE_KEY = 'echoes-collage-items';
+    const sizes = ['size-s', 'size-m', 'size-m', 'size-l', 'size-l', 'size-xl'];
+    const rotations = ['', '', '', 'rotate-left', 'rotate-right', 'rotate-tiny'];
+
+    function getItems() {
+      try {
+        const raw = localStorage.getItem(COLLAGE_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    const items = getItems();
+    const root = document.getElementById('root');
+
+    if (items.length === 0) {
+      root.innerHTML = '<div class="empty-state"><p>No images in your collage yet.</p><p><a href="map.html">Go to the map</a> and click places to add photos here.</p></div>';
+    } else {
+      const wall = document.createElement('div');
+      wall.className = 'collage-wall layout-grid';
+      const shuffled = shuffle(items);
+      shuffled.forEach((item, i) => {
+        const tile = document.createElement('div');
+        const size = sizes[i % sizes.length];
+        const rot = rotations[i % rotations.length];
+        tile.className = `tile ${size} ${rot}`.trim();
+        const img = document.createElement('img');
+        img.src = item.imageUrl;
+        img.alt = item.placeName;
+        img.loading = 'lazy';
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = item.placeName;
+        tile.appendChild(img);
+        tile.appendChild(label);
+        wall.appendChild(tile);
+      });
+      root.appendChild(wall);
+    }
+  </script>
+</body>
+</html>
