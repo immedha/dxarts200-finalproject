@@ -6,7 +6,7 @@ No build step or Node.js required. Use either option below.
 
 ## Open directly in the browser
 1. Clone this repository by doing `git clone https://github.com/immedha/dxarts200-finalproject.git`
-2. Go to your files and go to `map.html` in the `dxarts-finalproject` folder. 
+2. Go to your files and go to `map.html` in the `dxarts200-finalproject` folder. 
 3. Double click the file (`map.html`) or drag it into a browser window to open it in your browser.
 
 ## Project structure
